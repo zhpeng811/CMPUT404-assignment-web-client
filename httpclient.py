@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # coding: utf-8
 # Copyright 2016 Abram Hindle, https://github.com/tywtyw2002, and https://github.com/treedust
+# Copyright 2021 Ze Hui Peng
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,10 +20,10 @@
 # The point is to understand what you have to send and get experience with it
 
 import sys
-import socket
+import socket # https://docs.python.org/3.6/library/socket.html
 import re
-# you may use urllib to encode data appropriately
-import urllib.parse
+from inspect import cleandoc
+from urllib.parse import urlparse # https://docs.python.org/3.6/library/urllib.html
 
 def help():
     print("httpclient.py [GET/POST] [URL]\n")
@@ -33,17 +34,54 @@ class HTTPResponse(object):
         self.body = body
 
 class HTTPClient(object):
-    #def get_host_port(self,url):
+    def parse_url(self, url):
+        '''
+        Parse the url using the urllib library
+        There are three useful attributes that will be retrived from the result
+        
+        Returns:
+            A dict that contains the following key-value pairs:
+                path: Hierachical path (str)
+                hostname: Host name in lowercase (str)
+                port: Port number (int)
+        '''
+        parse_result = urlparse(url)
+
+        # TODO: ask for clairification regarding requests without http://
+        url_info = {
+            "path": parse_result.path,
+            "host": parse_result.hostname,
+            # default port number will be port 80
+            "port": parse_result.port if parse_result.port else 80
+        }
+
+        return url_info
 
     def connect(self, host, port):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.connect((host, port))
-        return None
+
+    def construct_payload(self, url_info, command):
+        '''
+        Construct the payload information for requests
+        GET request payload source: https://reqbin.com/req/nfilsyk5/get-request-example
+        
+        Returns:
+        A string that requests the request payload
+        '''
+        if (command == "GET"):
+            return "GET {} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n\r\n".format(url_info.get("path"), url_info.get("host"))
+        elif (command == "POST"):
+            return f'''
+            POST 
+            '''
+
+    # def parse_response(self, data):
 
     def get_code(self, data):
         return None
 
-    def get_headers(self,data):
+    def get_headers(self, data):
         return None
 
     def get_body(self, data):
@@ -67,15 +105,33 @@ class HTTPClient(object):
                 done = not part
         return buffer.decode('utf-8')
 
-    def GET(self, url, args=None):
+    def handle_request(self, type, url, args=None):
+        url_info = self.parse_url(url)
+
+        # connect to the client, send the request, and receive the response
+        self.connect(url_info.get("host"), url_info.get("port"))
+        payload = self.construct_payload(url_info, "GET")
+        print(payload)
+        self.sendall(payload)
+        data = self.recvall(self.socket)
+        print(data)
         code = 500
         body = ""
         return HTTPResponse(code, body)
 
+    def GET(self, url, args=None):
+        '''
+        This function will be redirected to the handle_request function
+        This function have to be kept for passing the unit tests
+        '''
+        return self.handle_request("GET", url, args)
+
     def POST(self, url, args=None):
-        code = 500
-        body = ""
-        return HTTPResponse(code, body)
+        '''
+        This function will be redirected to the handle_request function
+        This function have to be kept for passing the unit tests
+        '''
+        return self.handle_request("POST", url, args)
 
     def command(self, url, command="GET", args=None):
         if (command == "POST"):
