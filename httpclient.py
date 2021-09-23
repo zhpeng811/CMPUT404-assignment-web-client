@@ -49,7 +49,7 @@ class HTTPClient(object):
 
         # TODO: ask for clairification regarding requests without http://
         url_info = {
-            "path": parse_result.path,
+            "path": parse_result.path if parse_result.path != '' else '/',
             "host": parse_result.hostname,
             # default port number will be port 80
             "port": parse_result.port if parse_result.port else 80
@@ -61,7 +61,7 @@ class HTTPClient(object):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.connect((host, port))
 
-    def construct_payload(self, url_info, command):
+    def construct_payload(self, url_info, command, args=None):
         '''
         Construct the payload information for requests
         GET request payload source: https://reqbin.com/req/nfilsyk5/get-request-example
@@ -70,22 +70,55 @@ class HTTPClient(object):
         A string that requests the request payload
         '''
         if (command == "GET"):
-            return "GET {} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n\r\n".format(url_info.get("path"), url_info.get("host"))
+            # https://stackoverflow.com/a/54950733
+            return (
+                f'GET {url_info.get("path")} HTTP/1.1\r\n'
+                f'Host: {url_info.get("host")}\r\n'
+                'Connection: close\r\n'
+                'Accept: */*\r\n\r\n'
+            )
         elif (command == "POST"):
-            return f'''
-            POST 
-            '''
+            content = ''
+            if (args):
+                for (key, value) in args.items():
+                    content += f"{key}={value}&"
+                # remove the last '&' character
+                content = content[:-1]
 
-    # def parse_response(self, data):
+            return (
+                f'POST {url_info.get("path")} HTTP/1.1\r\n'
+                f'Host: {url_info.get("host")}\r\n'
+                'Connection: close\r\n'
+                'Content-Type: application/x-www-form-urlencoded\r\n'
+                f'Content-Length: {len(content)}\r\n\r\n'
+                f'{content}\r\n\r\n'
+            )
+
+    def parse_response(self, data):
+        parse_data = data.split("\r\n\r\n")
+        response = {
+            'headers': parse_data[0],
+            'body': parse_data[1],
+            'code': int(parse_data[0].split('\r\n')[0].split()[1])
+        }
+        return response
 
     def get_code(self, data):
-        return None
+        '''
+        This function will be redirected to the parse_response function
+        This function is kept for potential reference in the unit tests
+        '''
+        return self.parse_response(data)['code']
 
     def get_headers(self, data):
-        return None
+        '''
+        This function will be redirected to the parse_response function
+        This function is kept for potential reference in the unit tests
+        '''
+        return self.parse_response(data)['headers']
 
     def get_body(self, data):
-        return None
+        return self.parse_response(data)['body']
     
     def sendall(self, data):
         self.socket.sendall(data.encode('utf-8'))
@@ -105,18 +138,19 @@ class HTTPClient(object):
                 done = not part
         return buffer.decode('utf-8')
 
-    def handle_request(self, type, url, args=None):
+    def handle_request(self, command, url, args=None):
         url_info = self.parse_url(url)
 
         # connect to the client, send the request, and receive the response
         self.connect(url_info.get("host"), url_info.get("port"))
-        payload = self.construct_payload(url_info, "GET")
-        print(payload)
+        payload = self.construct_payload(url_info, command, args)
         self.sendall(payload)
         data = self.recvall(self.socket)
-        print(data)
-        code = 500
-        body = ""
+        self.close()
+
+        response = self.parse_response(data)
+        code = response['code']
+        body = response['body']
         return HTTPResponse(code, body)
 
     def GET(self, url, args=None):
