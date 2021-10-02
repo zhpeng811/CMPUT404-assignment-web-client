@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # coding: utf-8
 # Copyright 2016 Abram Hindle, https://github.com/tywtyw2002, and https://github.com/treedust
-# Copyright 2021 Ze Hui Peng
+# Copyright 2021 Ze Hui Peng https://github.com/zhpeng811/
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,9 +21,8 @@
 
 import sys
 import socket # https://docs.python.org/3.6/library/socket.html
-import re
-from inspect import cleandoc
 from urllib.parse import urlparse # https://docs.python.org/3.6/library/urllib.html
+from urllib.error import HTTPError
 
 def help():
     print("httpclient.py [GET/POST] [URL]\n")
@@ -47,7 +46,6 @@ class HTTPClient(object):
         '''
         parse_result = urlparse(url)
 
-        # TODO: ask for clairification regarding requests without http://
         url_info = {
             "path": parse_result.path if parse_result.path != '' else '/',
             "host": parse_result.hostname,
@@ -66,11 +64,14 @@ class HTTPClient(object):
         Construct the payload information for requests
         GET request payload source: https://reqbin.com/req/nfilsyk5/get-request-example
         
+        Args:
+            url_info: the URL information returned from parse_url()
+            command: the type of request, either "GET" or "POST"
         Returns:
-        A string that requests the request payload
+            A string that requests the request payload
         '''
         if (command == "GET"):
-            # https://stackoverflow.com/a/54950733
+            # format idea from: https://stackoverflow.com/a/54950733
             return (
                 f'GET {url_info.get("path")} HTTP/1.1\r\n'
                 f'Host: {url_info.get("host")}\r\n'
@@ -95,6 +96,9 @@ class HTTPClient(object):
             )
 
     def parse_response(self, data):
+        """
+        Parse the response and extract the headers, body, and status code 
+        """
         parse_data = data.split("\r\n\r\n")
         response = {
             'headers': parse_data[0],
@@ -139,14 +143,26 @@ class HTTPClient(object):
         return buffer.decode('utf-8')
 
     def handle_request(self, command, url, args=None):
+        '''
+        Handles both the GET and POST requests
+         
+        Args:
+            command: the request command, should be either "GET" or "POST"
+            url: the URL of the request
+            args: any additional parameters to the request
+        '''
         url_info = self.parse_url(url)
 
         # connect to the client, send the request, and receive the response
+        print(url_info)
         self.connect(url_info.get("host"), url_info.get("port"))
         payload = self.construct_payload(url_info, command, args)
         self.sendall(payload)
         data = self.recvall(self.socket)
         self.close()
+
+        # user story: As a user when I GET or POST I want the result printed to stdout
+        print(data)
 
         response = self.parse_response(data)
         code = response['code']
