@@ -161,12 +161,13 @@ class HTTPClient(object):
         data = self.recvall(self.socket)
         self.close()
 
-        # user story: As a user when I GET or POST I want the result printed to stdout
-        print(data)
-
         response = self.parse_response(data)
         code = response['code']
         body = response['body']
+
+        # user story: As a user when I GET or POST I want the result printed to stdout
+        print(f"response status code: {code}")
+        print(f"response body: {body}")
         return HTTPResponse(code, body)
 
     def GET(self, url, args=None):
